@@ -1,0 +1,94 @@
+"""
+Ingestion script for processing book PDFs and extracting text chunks
+with required metadata according to project standards.
+"""
+
+import os
+import csv
+import json
+import fitz  # PyMuPDF
+
+GROUP_ID = "G01"  # Replace with your assigned Group ID
+
+def load_manifest(csv_path="data/book_manifest.csv"):
+    """Loads the book manifest CSV file."""
+    books = []
+    if not os.path.exists(csv_path):
+        print(f"Manifest not found at {csv_path}. Please create it first.")
+        return books
+    
+    with open(csv_path, mode="r", encoding="utf-8") as file:
+        reader = csv.DictReader(file)
+        for row in reader:
+            books.append(row)
+    return books
+
+def chunk_text(text, chunk_size=500, overlap=50):
+    """Splits book text into smaller coherent chunks for indexing."""
+    words = text.split()
+    chunks = []
+    for i in range(0, len(words), chunk_size - overlap):
+        chunk = " ".join(words[i:i + chunk_size])
+        chunks.append(chunk)
+    return chunks
+
+def process_books():
+    """Main ingestion pipeline processing PDF books into standardized records."""
+    books = load_manifest()
+    if not books:
+        print("No books found in manifest to process.")
+        return
+
+    all_passages = []
+    os.makedirs("data/processed", exist_ok=True)
+
+    for book in books:
+        book_id = book["book_id"]
+        title = book["title"]
+        subject = book["subject"]
+        
+        # Expected path where PDF files will be stored locally
+        pdf_path = f"data/books/{book_id}.pdf"
+        
+        print(f"Processing: {title} ({book_id})...")
+        
+        if not os.path.exists(pdf_path):
+            print(f"  [Warning] PDF file not found at {pdf_path}. Skipping file extraction (simulate mode).")
+            continue
+        
+        try:
+            doc = fitz.open(pdf_path)
+            for page_num in range(len(doc)):
+                page = doc[page_num]
+                page_text = page.get_text()
+                
+                # Split page text into chunks
+                text_chunks = chunk_text(page_text)
+                
+                for chunk_idx, chunk_content in enumerate(text_chunks):
+                    chunk_id = f"{book_id}_P{page_num+1:03d}_C{chunk_idx+1:02d}"
+                    
+                    passage_record = {
+                        "group_id": GROUP_ID,
+                        "subject": subject,
+                        "book_id": book_id,
+                        "title": title,
+                        "page": page_num + 1,
+                        "chunk_id": chunk_id,
+                        "text": chunk_content
+                    }
+                    all_passages.append(passage_record)
+                    
+            print(f"  Successfully extracted {len(doc)} pages.")
+        except Exception as e:
+            print(f"  [Error] Failed to process {pdf_path}: {e}")
+
+    # Save processed passages to a JSON file for the indexer
+    output_path = "data/processed/passages.json"
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(all_passages, f, indent=2)
+    
+    print(f"\nIngestion complete! Saved {len(all_passages)} total passages to {output_path}.")
+
+if __name__ == "__main__":
+    process_books()
