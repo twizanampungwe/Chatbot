@@ -1,0 +1,188 @@
+
+#        ***** AIRTEL MONEY APP *****
+
+# REGISTERED USERS
+users = {
+    "0779111111": {"name": "Barry", "balance": 15000, "password": "1111"},
+    "0779222222": {"name": "Jonnah", "balance": 4000, "password": "2222"},
+    "0966333333": {"name": "Ryan", "balance": 3000, "password": "3333"},
+    "0979444444": {"name": "Chile", "balance": 6000, "password": "4444"},
+    "0979555555": {"name": "Daryn", "balance": 2500, "password": "5555"},
+    "0979666666": {"name": "Perry", "balance": 7000, "password": "6666"},
+    "0979777777": {"name": "Melvin", "balance": 3500, "password": "7777"},
+    "0979888888": {"name": "John", "balance": 4500, "password": "8888"},
+    "0979999999": {"name": "kevin", "balance": 8000, "password": "9999"},
+    "0979000000": {"name": "Chalu", "balance": 5500, "password": "0000"}
+}
+# LAST REVERSIBLE TRANSACTION FOR EACH USER
+last_transactions = {phone: None for phone in users}
+running = True
+
+print("        AIRTEL MONEY        ")
+# MAIN APPLICATION LOOP
+while running:
+    # LOGIN
+    while True:
+        phone = input("\nEnter phone number (or EXIT): ").strip()
+        if phone.lower() == "exit":
+            running = False
+            break
+        if not phone.isdigit() or len(phone) != 10 or not phone.startswith("0"):
+            print("Enter 10 digits starting with 0.")
+        elif phone not in users:
+            print("Phone number not registered.")
+        else:
+            break
+    if not running:
+        break
+    # PIN VERIFICATION
+    logged_in = False
+    attempt = 0
+    while attempt < 3 and not logged_in:
+        pin = input("Enter PIN: ")
+        if pin == users[phone]["password"]:
+            logged_in = True
+            print("\nWelcome,", users[phone]["name"])
+        else:
+            attempt += 1
+            print("Wrong PIN!")
+            if attempt < 3:
+                print("Attempts remaining:", 3 - attempt) 
+    if not logged_in:
+        print("Too many failed attempts. Returning to login.")
+        continue
+    # USER MENU
+    while logged_in and running:
+        print("\n========== MAIN MENU ==========")
+        print("Logged in as:", users[phone]["name"])
+        print("1. Send Money")
+        print("2. Deposit Money")
+        print("3. Check Balance")
+        print("4. Reverse Transaction")
+        print("5. Change PIN")
+        print("6. Switch Account / Log Out")
+        print("7. Exit Application")
+        choice = input("Choose an option: ").strip()
+        # SEND MONEY
+        if choice == "1":
+            receiver = input("Enter receiver's number: ").strip()
+            if not receiver.isdigit() or len(receiver) != 10 or not receiver.startswith("0"):
+                print("Invalid phone number.")
+            elif receiver not in users:
+                print("Receiver is not registered.")
+            elif receiver == phone:
+                print("You cannot send money to yourself.")
+            else:
+                try:
+                    amount = float(input("Enter amount to send: "))
+                    if amount <= 0:
+                        print("Amount must be greater than zero.")
+                    elif amount > users[phone]["balance"]:
+                        print("Insufficient balance.")
+                    else:
+                        # UPDATE BOTH ACCOUNTS IMMEDIATELY
+                        users[phone]["balance"] -= amount
+                        users[receiver]["balance"] += amount
+                        last_transactions[phone] = {
+                            "type": "send",
+                            "amount": amount,
+                            "receiver": receiver
+                        }
+                        # Receiving money becomes the receiver's
+                        # latest transaction, but is not reversible
+                        # by the receiver.
+                        last_transactions[receiver] = {
+                            "type": "received",
+                            "amount": amount,
+                            "sender": phone
+                        }
+                        print("\nTransfer successful!")
+                        print("Sent to:", users[receiver]["name"])
+                        print("Amount: K", amount)
+                        print("New balance: K", users[phone]["balance"])
+                except ValueError:
+                    print("Enter a valid amount.")
+        # DEPOSIT MONEY
+        elif choice == "2":
+            source = input("Deposit to ").strip()
+            try:
+                amount = float(input("Enter deposit amount: "))
+                if amount <= 0:
+                    print("Amount must be greater than zero.")
+                else:
+                    users[phone]["balance"] += amount
+                    last_transactions[phone] = {
+                        "type": "deposit",
+                        "amount": amount,
+                        "source": source
+                    }
+                    print("Money from:", source)
+                    print("Deposited: K", amount)
+                    print("New balance: K", users[phone]["balance"])
+            except ValueError:
+                print("Enter a valid amount.")
+        # CHECK BALANCE
+        elif choice == "3":
+            print("\nAccount holder:", users[phone]["name"])
+            print("Phone number:", phone)
+            print("Balance: K", users[phone]["balance"])
+        # REVERSE TRANSACTION
+        elif choice == "4":
+            transaction = last_transactions[phone]
+            if transaction is None:
+                print("No transaction to reverse.")
+            elif transaction["type"] == "send":
+                receiver = transaction["receiver"]
+                amount = transaction["amount"]
+                if users[receiver]["balance"] < amount:
+                    print("Cannot reverse: receiver has insufficient funds.")
+                else:
+                    users[phone]["balance"] += amount
+                    users[receiver]["balance"] -= amount
+                    last_transactions[phone] = None
+                    last_transactions[receiver] = {
+                        "type": "received",
+                        "amount": -amount,
+                        "sender": phone
+                    }
+                    print("Transfer reversed successfully.")
+            elif transaction["type"] == "deposit":
+                amount = transaction["amount"]
+                if users[phone]["balance"] < amount:
+                    print("Cannot reverse: insufficient balance.")
+                else:
+                    users[phone]["balance"] -= amount
+                    last_transactions[phone] = None
+                    print("Deposit reversed successfully.")
+            else:
+                print("This transaction cannot be reversed.")
+            print("Current balance: K", users[phone]["balance"])
+        # CHANGE PIN
+        elif choice == "5":
+            old_pin = input("Enter current PIN: ")
+            if old_pin != users[phone]["password"]:
+                print("Incorrect PIN.")
+            else:
+                new_pin = input("Enter new 4-digit PIN: ")
+                if not new_pin.isdigit() or len(new_pin) != 4:
+                    print("PIN must contain exactly 4 digits.")
+                elif new_pin == old_pin:
+                    print("New PIN must differ from the old PIN.")
+                elif input("Confirm new PIN: ") != new_pin:
+                    print("PINs do not match.")
+                else:
+                    users[phone]["password"] = new_pin
+                    print("PIN changed successfully.")
+        # SWITCH ACCOUNT
+        elif choice == "6":
+            print("Logged out:", users[phone]["name"])
+            print("You can now log in to another account.")
+            logged_in = False
+        # EXIT APPLICATION
+        elif choice == "7":
+            print("Thank you for using Airtel Money!", users[phone]["name"])
+            logged_in = False
+            running = False
+        else:
+            print("Invalid option. Choose 1-7.")
+print("\nAirtel Money application closed.")
